@@ -18,10 +18,10 @@ public class Calculator {
 	public static ArrayList<String> MethodList = new ArrayList<String>();
 	public static ArrayList<String> PowerList = new ArrayList<String>();
 	public static ArrayList<Double> PowerListNum = new ArrayList<Double>();
-	public static ArrayList<String> Historymethoddata = new ArrayList<String>();
-	public static ArrayList<String> Historylocalmethod = new ArrayList<String>();
-	public static ArrayList<String> Historylocalpower = new ArrayList<String>();
-	public static ArrayList<Double> Historylocaldata = new ArrayList<Double>();
+	public static ArrayList<String> HistoryMethodData = new ArrayList<String>();
+	public static ArrayList<String> HistoryMethod = new ArrayList<String>();
+	public static ArrayList<String> HistoryPower = new ArrayList<String>();
+	public static ArrayList<Double> HistoryPowerNum = new ArrayList<Double>();
 	public static String packagename;
 	public static String appname;
 
@@ -93,6 +93,47 @@ public class Calculator {
 		bw.close();
 		return ResultData;
 	}
+	
+	@SuppressWarnings("resource")
+	public ArrayList<Double> getHistoryTextFromMethodText(String MethodPath, String PowerTutorPath)
+			throws IOException {
+		ArrayList<Double> ResultData = new ArrayList<Double>();
+		int begin, end;
+		double p;
+		java.text.DecimalFormat df = new java.text.DecimalFormat("0.000");
+		BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(MethodPath)));
+
+
+		String str;
+		String methodName = ""; // 方法名称
+		String cpuPowerPercent = ""; // CPU百分比
+
+		while ((str = br.readLine())!=null) {
+			//读取各个方法的CPU使用率和方法名(百分号被去除)
+			begin = 0;
+			end = str.indexOf("%", begin);
+			cpuPowerPercent = str.substring(begin, end).trim();
+			begin = end + 2;
+			methodName = str.substring(begin, str.length());
+
+			p = Double.parseDouble(df.format(Double.parseDouble(cpuPowerPercent)));
+			p = (p / totalPercent(MethodPath)) * readCPUtotalpower(PowerTutorPath);
+			String ps = df.format(p);
+			p = Double.parseDouble(ps);
+			String s = methodName + "\t" + ps +"J";
+			
+			HistoryMethodData.add(s);
+			HistoryMethod.add(methodName);
+			HistoryPowerNum.add(p);
+			ResultData.add(p);
+			HistoryPower.add("" + p + "J");
+			
+			br.readLine();
+		}
+		HistoryMethodData.add("total power: " + readCPUtotalpower(PowerTutorPath) + "J");
+		return ResultData;
+	}
+
 /*
 	@SuppressWarnings("resource")
 	public ArrayList<Double> readHistoryFile(String MethodPath, String PowerTutorPath, String outputPath)
@@ -180,7 +221,7 @@ public class Calculator {
 	public static void main(String[] args) {
 	}
 	
-	public double readCPUtotalpower(String filePath) throws IOException {
+	public static double readCPUtotalpower(String filePath) throws IOException {
 		double p = 0; //各个方法的电量
 		int begin;
 		int end;

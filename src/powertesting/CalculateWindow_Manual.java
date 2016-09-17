@@ -32,13 +32,15 @@ import org.w3c.dom.NodeList;
 import outputProcessing.Calculator;
 import outputProcessing.MethodReader;
 
-public class CalculateWindow_Manual extends ApplicationWindow {
+public class CalculateWindow_Manual extends ApplicationWindow{
 
 	public static String projectName;
 	public static String outputPath;
 	public static String packageName;
+	public static String historyPath;
 	private String mainActivityName;
 	private String workspacePath;
+	private String iostatPath;
 
 	public void setDefaultPath() {
 		InputStream in = CalculateWindow_Manual.class.getClassLoader().getResourceAsStream("path.cfg.properties");
@@ -47,8 +49,9 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 			properties.load(in);
 			projectName = properties.getProperty("project_name");
 			outputPath = properties.getProperty("manual_output");
+			historyPath = properties.getProperty("history_output");
 			workspacePath = properties.getProperty("workspace_path");
-			
+			iostatPath = System.getProperty("user.dir")+"\\iostat";
 			SimpleDateFormat   sDateFormat   =   new   SimpleDateFormat("MM-dd");  
 		    String logDate = sDateFormat.format(new   java.util.Date());
 		    outputPath += "\\" + projectName + "-" + logDate;
@@ -59,27 +62,44 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 			e.printStackTrace();
 		}
 	}
+	//用于多线程的，实现Runnable的类
+	public class executeCMDLineThread implements Runnable {
+	    private String cmdLine;
 
+	    public executeCMDLineThread(String cmdLine) {
+	        this.cmdLine = cmdLine;
+	    } 
+
+	    public void run() {
+	    	try {
+				//String c = "cmd /c adb shell top -m 5 -n 10 -d 6 > "+outputPath+"\\top.txt";
+				System.out.println(cmdLine);
+				Process p = Runtime.getRuntime().exec(cmdLine);
+/*				InputStream input = p.getInputStream();
+				if (input.read() != -1) {
+					System.out.println("start Performance Tool OK");
+				} else
+					System.out.println("can't read Performance Tool report");*/
+			} catch (Exception e2) {
+				// TODO: handle exception
+				System.out.println("start Performance Tool Error");
+			}
+	    } 
+	}
 	// 本方法用于安装PowerTutor程序，打包并安装待测项目
 	private void install() {
-
+		// 安装Iostat 存储读写测量工具
+		installIostat();
+		
 		// 安装PowerTutor
 		String drive = MainWindow.powerTutorPath.substring(0, 2); // 获取安装包路径盘符
-		String c = "cmd /c " + drive + " && cd " + MainWindow.powerTutorPath + " && adb install PowerTutor.apk";
+		String c = "cmd /c " + drive + " && cd " + MainWindow.powerTutorPath + " && adb install UMLogger.apk";
 		System.out.println(c);
-		try {
-			Process p = Runtime.getRuntime().exec(c);
-			InputStream input = p.getInputStream();
-			if (input.read() != -1) {
-				System.out.println("install powertutor OK");
-			} else
-				System.out.println("install powertutor Error");
-			input.close();
-		} catch (Exception e) {
-			// TODO: handle exception
-			e.printStackTrace();
+		if(executeCommand(c)){
+			System.out.println("install powertutor OK");
+		} else{
+			System.out.println("install powertutor Error");
 		}
-
 		// 生成build.xml文件
 		drive = workspacePath.substring(0, 2);
 		c = "cmd /c " + drive + "&& cd " + workspacePath + "&& android update project -n " + projectName + " -p "
@@ -87,86 +107,58 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 		// String c = "cmd /c " + drive + " && cd " + MainWindow.powerTutorPath
 		// + " && adb install PowerTutor.apk";
 		System.out.println(c);
-		try {
-			Process p = Runtime.getRuntime().exec(c);
-			InputStream input = p.getInputStream();
-			if (input.read() != -1) {
-				System.out.println("update project OK");
-			} else
-				System.out.println("update project Error");
-			input.close();
-		} catch (Exception e) {
-			// TODO: handle exception
-			e.printStackTrace();
+		if (executeCommand(c)) {
+			System.out.println("update project OK");
+		} else{
+			System.out.println("update project Error");
 		}
-
+			
 		// 清理project
 		drive = workspacePath.substring(0, 2);
 		c = "cmd /c " + drive + "&& cd " + workspacePath + "\\" + projectName + " && ant clean";
 		System.out.println(c);
-		try {
-			Process p = Runtime.getRuntime().exec(c);
-			InputStream input = p.getInputStream();
-			if (input.read() != -1) {
-				System.out.println("clean project OK");
-			} else
-				System.out.println("clean project Error");
-			input.close();
-		} catch (Exception e) {
-			// TODO: handle exception
-			e.printStackTrace();
-		}
-
+		if (executeCommand(c)) {
+			System.out.println("clean project OK");
+		} else
+			System.out.println("clean project Error");
+		
 		// 打包生成apk文件
 		drive = workspacePath.substring(0, 2);
 		c = "cmd /c " + drive + "&& cd " + workspacePath + "\\" + projectName + " && ant debug";
 		System.out.println(c);
-		try {
-			Process p = Runtime.getRuntime().exec(c);
-			InputStream input = p.getInputStream();
-			if (input.read() != -1) {
-				System.out.println("create apk file OK");
-			} else
-				System.out.println("create apk file Error");
-			input.close();
-		} catch (Exception e) {
-			// TODO: handle exception
-			e.printStackTrace();
-		}
-
+		if (executeCommand(c)) {
+			System.out.println("create apk file OK");
+		} else
+			System.out.println("create apk file Error");
+		
 		// 通过生成的apk文件安装待测项目
 		drive = workspacePath.substring(0, 2);
 		c = "cmd /c " + drive + "&& cd " + workspacePath + "\\" + projectName + "\\bin && adb install " + projectName
 				+ "-debug.apk";
-		System.out.println(c);
-		try {
-			Process p = Runtime.getRuntime().exec(c);
-			InputStream input = p.getInputStream();
-			if (input.read() != -1) {
-				System.out.println("install apk OK");
-			} else
-				System.out.println("install apk Error");
-			input.close();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+		System.out.println(c);		
+		if (executeCommand(c)) {
+			System.out.println("install apk OK");
+		} else
+			System.out.println("install apk Error");	
+			
 	}
 
 	private void config() {
 		// 删除dmtrace.trace文件以及PowerTutor.txt文件
-		String c = "cmd /c adb shell && " + "cd sdcard && " + "rm dmtrace.trace && " + "rm PowerTutor.txt";
+		String c1 = "cmd /c adb shell && cd sdcard && rm dmtrace.trace";
+		String c2 = "cmd /c adb shell && cd sdcard && rm PowerTutor.txt";
+		Process p;
+		Boolean rtn = false;
 		try {
-			Process p = Runtime.getRuntime().exec(c);
-			InputStream input = p.getInputStream();
-			if (input.read() != -1) {
-				System.out.println("remove history files OK");
-			} else
-				System.out.println("remove history files Error");
-		} catch (IOException e1) {
+			p = Runtime.getRuntime().exec(c1);			
+			p = Runtime.getRuntime().exec(c2);
+		} catch (IOException e) {
 			// TODO Auto-generated catch block
-			e1.printStackTrace();
-			System.out.println("remove history files Error");
+			System.out.println("remove history Files Error");
+			e.printStackTrace();
 		}
+		System.out.println("excited!");	
+			
 		// 读取待测安装项目的包名和入口Activity名
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 		DocumentBuilder builder = null;
@@ -262,31 +254,39 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 			public void widgetSelected(SelectionEvent e) {
 
 				// 打开PowerTutor
-				try {
-					String c = "cmd /c adb shell am start -n "
-							+ "edu.umich.PowerTutor/edu.umich.PowerTutor.ui.UMLogger";
-					Process p = Runtime.getRuntime().exec(c);
-					InputStream input = p.getInputStream();
-					if (input.read() != -1) {
-						System.out.println("Open PowerTutor OK");
-					} else
-						System.out.println("Open PowerTutor Error");
-				} catch (Exception e3) {
+				String c = "cmd /c adb shell am start -n "
+						+ "edu.umich.PowerTutor/edu.umich.PowerTutor.ui.PowerTop";	
+				System.out.println(c);
+				if (executeCommand(c)) {
+					System.out.println("Open PowerTutor OK");
+				} else
 					System.out.println("Open PowerTutor Error");
-				}
 				// 打开待测Android程序
-				try {
-					String c = "cmd /c adb shell am start -n " + packageName + "/" + packageName + mainActivityName;
-					Process p = Runtime.getRuntime().exec(c);
-					InputStream input = p.getInputStream();
-					if (input.read() != -1) {
-						System.out.println("Open project OK");
-					} else
-						System.out.println("Open project Error");
-				} catch (Exception e2) {
-					// TODO: handle exception
+				c = "cmd /c adb shell am start -n " + packageName + "/" + mainActivityName;
+				System.out.println(c);
+				if (executeCommand(c)) {
+					System.out.println("Open project OK");
+				} else
 					System.out.println("Open project Error");
-				}
+				c = "cmd /c md "+outputPath;
+				System.out.println(c);
+				executeCommand(c);
+				//用多线程同时执行四条命令行，TOP VMSTAT IOSTAT PROCRANK
+				executeCMDLineThread TopCMD = new executeCMDLineThread("cmd /c adb shell top -m 5 -n 10 -d 6 > "+outputPath+"\\top.txt");
+				executeCMDLineThread VmstatCMD = new executeCMDLineThread("cmd /c adb shell vmstat -n 10 -d 6 > "+outputPath+"\\vmstat.txt");
+				executeCMDLineThread IostatCMD = new executeCMDLineThread("cmd /c adb shell iostat -d 6 10 > "+outputPath+"\\iostat.txt");
+				executeCMDLineThread ProcrankCMD = new executeCMDLineThread("cmd /c adb shell /system/xbin/procrank > "+outputPath+"\\procrank.txt");
+				
+				Thread TopThread = new Thread(TopCMD);
+		        Thread VmstatThread = new Thread(VmstatCMD);
+		        Thread IostatThread = new Thread(IostatCMD);
+		        Thread ProcrankThread = new Thread(ProcrankCMD);
+		        
+		        //开始四条多线程同时运行
+		        TopThread.start(); 
+		        VmstatThread.start(); 
+		        IostatThread.start();
+		        ProcrankThread.start();
 			}
 		});
 
@@ -312,7 +312,7 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 				try {
 					Runtime.getRuntime().exec(c);
 				} catch (Exception e2) {
-					// TODO: handle exception
+					// : handle exception
 					System.out.println("copy dmtrace.trace Error");
 				}
 
@@ -336,17 +336,13 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 
 				// 卸载待测程序
 				c = "cmd /c adb uninstall " + packageName;
-				try {
-					Process p = Runtime.getRuntime().exec(c);
-					InputStream input = p.getInputStream();
-					if (input.read() != -1) {
-						System.out.println("uninstall project OK");
-					} else
-						System.out.println("uninstall project Error");
-				} catch (Exception e2) {
-					// TODO: handle exception
+				if (executeCommand(c)) {
+					System.out.println("uninstall project OK");
+				} else{
 					System.out.println("uninstall project Error");
 				}
+					
+			
 
 				// 处理输出结果
 
@@ -360,14 +356,6 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 					e1.printStackTrace();
 				}
 
-				Calculator cal = new Calculator();
-				try {
-					cal.getPowerTextFromMethodText(outputPath + "\\method.txt", outputPath + "\\PowerTutor.txt",
-							outputPath + "\\powerInfo.txt");
-				} catch (IOException e1) {
-					// TODO 自动生成的 catch 块
-					e1.printStackTrace();
-				}
 
 				/*
 				 * for (int i = 0; i < CalculatorInc.Inclocalmethod.size(); i++)
@@ -378,7 +366,16 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 				 * 
 				 * }
 				 */
-				System.out.println("OK");
+				
+				Calculator cal = new Calculator();
+				try {
+					cal.getPowerTextFromMethodText(outputPath+"\\method.txt", outputPath+"\\PowerTutor.txt", outputPath+"\\powerInfo.txt");
+					cal.getHistoryTextFromMethodText(historyPath+"\\method.txt", historyPath+"\\PowerTutor.txt");
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+				
 			}
 		});
 
@@ -398,9 +395,9 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 		analyze_btn.setText("   analyze(还没弄好,莫点！)   ");
 		analyze_btn.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				new ChartWindow();
+				new ResultWindow();
 				getShell().close();
-				ChartWindow.main(null);
+				ResultWindow.main(null);
 			}
 		});
 
@@ -460,4 +457,49 @@ public class CalculateWindow_Manual extends ApplicationWindow {
 		return new Point(480, 300);
 	}
 
+	public void installIostat(){
+		String c = "cmd /c adb root";
+		System.out.println(c);	
+		if (executeCommand(c)) {
+				System.out.println("adb running as root");
+		} else{
+			System.out.println("adb root fail");	
+		}
+		c = "cmd /c adb remount";
+		System.out.println(c);	
+		if (executeCommand(c)) {
+			System.out.println("adb remount succeeded");
+		} else{
+			System.out.println("adb remount fail");	
+		}
+		c = "cmd /c adb push "+iostatPath+" /system/bin/ ";
+		System.out.println(c);	
+		if (executeCommand(c)) {
+			System.out.println("adb push iostat succeeded");
+		} else{
+			System.out.println("adb push iostat fail");	
+		}		
+		c = "cmd /c adb shell chmod 755 /system/bin/iostat ";
+		System.out.println(c);	
+		executeCommand(c);
+	}
+	
+	public Boolean executeCommand(String command){
+		Process p;
+		Boolean rtn = false;
+		try {
+			p = Runtime.getRuntime().exec(command);
+			InputStream input = p.getInputStream();
+			if (input.read() != -1) {
+				rtn = true;
+			}
+			input.close();
+			p.waitFor();
+		} catch (IOException | InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return rtn;
+		}
+		return rtn;
+	}
 }

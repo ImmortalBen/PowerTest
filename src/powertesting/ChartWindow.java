@@ -13,10 +13,13 @@ import org.eclipse.jface.window.ApplicationWindow;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.custom.CTabItem;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
@@ -29,19 +32,27 @@ import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.swt.widgets.TableColumn;
 import org.swtchart.Chart;
+import org.swtchart.IAxis;
 import org.swtchart.IBarSeries;
 import org.swtchart.ILineSeries;
 import org.swtchart.ISeries.SeriesType;
+import org.swtchart.Range;
 import org.swtchart.ext.InteractiveChart;
 
+import outputResult.HistoryPie;
+import outputResult.piechart;
+import outputProcessing.Calculator;
 
 public class ChartWindow extends ApplicationWindow {
-	//public String filePath = CalculateWindow_Manual.outputPath;
-	public String filePath = "C:\\Users\\benyin\\Documents\\Graduation_Paper\\Data\\3.30";
+	public String filePath = CalculateWindow_Manual.outputPath;
+	//public String filePath = "C:\\Users\\benyin\\Documents\\Graduation_Paper\\Data\\My12306-05-17";
 	private static Chart[] charts;
-	private static long lastTime = System.currentTimeMillis();
-	private static int dataLength;
-	private static double[] test;
+//	private static long lastTime = System.currentTimeMillis();
+//	private static int dataLength;
+//	private static double[] test;
+	private ArrayList hotSpot = new ArrayList();
+	private static int recordTime = 60;
+	private double maxY = 0;
 	/**
 	 * Create the application window,
 	 */
@@ -87,6 +98,26 @@ public class ChartWindow extends ApplicationWindow {
 				tbtmComponent.setText(componentName);
 		}
 		
+		Button btnToChart = new Button(container, SWT.CENTER);
+		btnToChart.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false, 1, 1));
+		btnToChart.setText("与历史纪录进行对比");
+		btnToChart.addSelectionListener(new SelectionAdapter() {
+			
+			public void widgetSelected(SelectionEvent e) {
+
+				System.out.println("pieSize"+String.valueOf(Calculator.MethodList.size()));
+				System.out.println("pieSize"+String.valueOf(Calculator.HistoryMethod.size()));
+				if (Calculator.PowerListNum.size() != 0){
+					piechart piechart = new piechart();
+				}
+				if (Calculator.HistoryPowerNum.size() != 0){
+					HistoryPie historyPiechart = new HistoryPie();
+				}	
+				
+			}
+		});
+		//未能做到动态刷新，总提示 widget is disposed
+
 		
 
 		
@@ -119,29 +150,33 @@ public class ChartWindow extends ApplicationWindow {
 	 */
 	public static void main(String args[]) {
 		try {
-			ChartWindow window = new ChartWindow();
+			ChartWindow window = new ChartWindow();		
 			window.setBlockOnOpen(true);
 			window.open();
+			
 			Display.getCurrent().dispose();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		//未能做到动态刷新，总提示 widget disposed
-//		int index = 1;		
-//		while(true){
-//			long curTime = System.currentTimeMillis();
-//			
-//			if(curTime - lastTime > 1000){
-//				lastTime = curTime;
-//				if (index >= dataLength){
-//					break;
-//				}
-//				charts[1] = updateComponentChart(charts[1], "CPU", test, index);
-//				charts[1].getAxisSet().adjustRange();
-//				index++;
-//			}
-//		}
-		
+		/*未能做到动态刷新，总提示 widget is disposed
+				int index = 1;		
+				System.out.println("NI LAO MU:"+index);
+				while(true){
+					System.out.println("NI LAO MU:"+index);
+					long curTime = System.currentTimeMillis();
+					dataLength = test.length;
+					if(curTime - lastTime > 1000){
+						lastTime = curTime;
+						
+						if (index >= dataLength){
+							break;
+						}
+						charts[1] = updateComponentChart(charts[1], "CPU", test, index);
+						charts[1].getAxisSet().adjustRange();
+						index++;
+					}
+				}
+		*/
 	}
 
 	/**
@@ -168,18 +203,33 @@ public class ChartWindow extends ApplicationWindow {
 		FileInputStream fis = null;
 		InputStreamReader isr = null;
 		BufferedReader br = null;
+		String componentName = new String();
 		try {
 			fis = new FileInputStream(filePath);
 			isr = new InputStreamReader(fis);
 			br = new BufferedReader(isr);
 			System.out.println("read from: "+filePath);
 			String line = new String();
+			Double lastData= (double) -1;
+			int index = 0;
 			while ((line = br.readLine()) != null) {
 				int begin=line.indexOf("] ");
 				if (begin != -1){
 					String oneSecData = line.substring(begin+2,line.length());
-				    Data.add(Double.parseDouble(oneSecData));
-				}		    
+					Double curData= Double.parseDouble(oneSecData);
+				    Data.add(curData);
+				    if (lastData == -1){
+				    	lastData = curData;
+				    }
+				    if (curData / lastData >=3 || curData > 200){
+				    	hotSpot.add(index);
+				    }
+				    index++;
+				    lastData = curData;
+				}
+				else if (componentName != null){
+					componentName = line;
+				}
 			}
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
@@ -189,8 +239,8 @@ public class ChartWindow extends ApplicationWindow {
 		br.close();
 		Double[] tmpData = new Double[Data.size()];
 		Data.toArray(tmpData);
-		double[] chartData = new double[Data.size()];
-		for(int i=0;i<Data.size();i++){
+		double[] chartData = new double[recordTime];
+		for(int i=0;i<recordTime;i++){
 			chartData[i] = tmpData[i];
 		}
 		return chartData;
@@ -205,6 +255,11 @@ public class ChartWindow extends ApplicationWindow {
 			String componentPath = filePath + "\\"+componentName+".txt";
 			//filePath = "C:\\Users\\benyin\\Documents\\Graduation_Paper\\Data\\cpu.txt";
 			double[] componentData = readComponentData(componentPath);
+			double maxComData = 0;
+			for (int j=0; j<componentData.length; j++){
+				maxY = Math.max(maxY, componentData[j]);
+				maxComData = Math.max(maxComData, componentData[j]);
+			}
 			// create a chart
 			Chart chart = new Chart(body, SWT.NONE);
 
@@ -226,26 +281,17 @@ public class ChartWindow extends ApplicationWindow {
 		        lineSeries2.setYSeries(componentData);
 		        lineSeries2.setLineColor(Display.getDefault().getSystemColor(colors[i]));
 		        charts[0].getAxisSet().adjustRange();
+		        IAxis Y = charts[0].getAxisSet().getYAxis(0);
+		        Y.setRange(new Range(0, maxY+0.2*maxY));
 
 			}
 			// adjust the axis range
 			chart.getAxisSet().adjustRange();
+			IAxis Y = chart.getAxisSet().getYAxis(0);
+	        Y.setRange(new Range(0, maxComData+0.2*maxComData));
 			charts[i] = chart;
 		}
 		return charts;
 	}
 	
-	private static Chart updateComponentChart(Chart chart, String componentName, double[] data, int index){
-		double[] updateData = new double[60];
-		for (int i=0; i<60; i++){
-			updateData[i] = data[i+index];
-		}
-		Chart updateChart = chart;
-		// create line series
-		ILineSeries lineSeries = (ILineSeries) updateChart.getSeriesSet()
-		    .getSeries(componentName);
-		lineSeries.setYSeries(updateData);
-		updateChart.getAxisSet().adjustRange();
-		return updateChart;
-	}
 }
